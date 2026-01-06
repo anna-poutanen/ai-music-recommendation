@@ -12,7 +12,15 @@ import os
 from face_detection import FaceDetector
 from emotion_model import EmotionClassifier
 from emotion_engine import EmotionEngine
-from recommender import MusicRecommender
+from local_recommender import LocalMusicRecommender
+
+# Try to import Spotify recommender
+SPOTIFY_AVAILABLE = False
+try:
+    from recommender import MusicRecommender
+    SPOTIFY_AVAILABLE = True
+except ImportError:
+    pass
 
 
 # Page config
@@ -42,7 +50,7 @@ st.markdown("""
     }
     .track-card {
         background-color: #ffffff;
-        padding: 15px;
+        padding:  15px;
         border-radius:  10px;
         margin: 10px 0;
         border-left: 4px solid #1DB954;
@@ -52,7 +60,14 @@ st.markdown("""
         padding: 15px;
         border-radius:  5px;
         border-left: 4px solid #ffc107;
-        margin: 20px 0;
+        margin:  20px 0;
+    }
+    .local-mode-banner {
+        background-color: #d1ecf1;
+        padding:  10px 15px;
+        border-radius:  5px;
+        border-left: 4px solid #17a2b8;
+        margin: 10px 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -69,17 +84,25 @@ if 'classifier' not in st.session_state:
 if 'engine' not in st.session_state:
     st.session_state.engine = EmotionEngine()
 if 'recommender' not in st.session_state:
-    try:
-        st.session_state.recommender = MusicRecommender()
-    except ValueError as e:
-        st.session_state.recommender = None
-        st.session_state.spotify_error = str(e)
+    # Always use local recommender - no Spotify needed
+    st.session_state.recommender = LocalMusicRecommender()
+    st.session_state.using_local = True
 
 
 def main():
     # Header
     st.markdown('<h1 class="main-header">🎵 Facial Expression Music Recommender</h1>', 
                 unsafe_allow_html=True)
+    
+    # Show local mode banner
+    if st.session_state.get('using_local', False):
+        st.markdown("""
+            <div class="local-mode-banner">
+                <strong>📍 Running in Local Mode</strong><br>
+                Using local song database (Spotify API not configured).
+                Songs will open in YouTube search.
+            </div>
+        """, unsafe_allow_html=True)
     
     # Disclaimer
     st.markdown("""
@@ -98,10 +121,9 @@ def main():
         st.code("python src/train_emotion_model.py")
         return
     
-    # Check Spotify credentials
+    # Check recommender
     if st.session_state.recommender is None:
-        st.error(f"{st.session_state.get('spotify_error', 'Spotify setup error')}")
-        st.info("Please set up your Spotify credentials in the .env file")
+        st.error("Recommender setup error")
         return
     
     # Main layout
@@ -130,7 +152,7 @@ def main():
                     image_bgr.copy(), bbox
                 )
                 image_with_box_rgb = cv2.cvtColor(image_with_box, cv2.COLOR_BGR2RGB)
-                st.image(image_with_box_rgb, caption="Face Detection", use_container_width=True)
+                st.image(image_with_box_rgb, caption="Face Detection", use_column_width=True)
                 
                 # Predict emotion
                 emotion_probs = st.session_state.classifier.predict_emotion(face_crop)
@@ -150,7 +172,7 @@ def main():
                 # Emotion probabilities
                 with st.expander("View All Emotion Probabilities"):
                     for emo, prob in sorted(emotion_probs.items(), 
-                                           key=lambda x: x[1], reverse=True):
+                                           key=lambda x:  x[1], reverse=True):
                         st.progress(prob, text=f"{emo}: {prob:.1%}")
                 
                 # Emotion override
@@ -198,15 +220,20 @@ def main():
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Spotify link
+                    # Dynamic button text based on URL type
+                    if "spotify.com" in track['url']: 
+                        button_text = "▶️ Play on Spotify"
+                    else:
+                        button_text = "🔍 Search on YouTube"
+                    
                     st.link_button(
-                        "Play on Spotify",
+                        button_text,
                         track['url'],
                         use_container_width=True
                     )
                     
-                    # Album artwork
-                    if track['image_url']:
+                    # Album artwork (only available with Spotify)
+                    if track.get('image_url'):
                         st.image(track['image_url'], width=200)
                     
                     st.divider()
@@ -215,13 +242,16 @@ def main():
     
     # Footer
     st.markdown("---")
-    st.markdown("""
-        <div style="text-align: center; color: #666;">
-            Made using Streamlit, TensorFlow, and Spotify API<br>
+    
+    footer_text = "Made using Streamlit and TensorFlow (Local Mode)"
+    
+    st.markdown(f"""
+        <div style="text-align:  center; color: #666;">
+            {footer_text}<br>
             <small>Emotion detection powered by CNN trained on FER-2013 dataset</small>
         </div>
     """, unsafe_allow_html=True)
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     main()

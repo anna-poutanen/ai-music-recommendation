@@ -65,7 +65,7 @@ class MusicRecommender:
         
         # Get audio features for tracks
         track_ids = [track['id'] for track in results['tracks']['items']]
-        audio_features = self. sp.audio_features(track_ids)
+        audio_features = self.sp.audio_features(track_ids)
         
         # Score and rank tracks
         scored_tracks = []
@@ -87,7 +87,7 @@ class MusicRecommender:
         recommendations = []
         for item in scored_tracks[:num_tracks]:
             track = item['track']
-            recommendations. append({
+            recommendations.append({
                 'name': track['name'],
                 'artists': ', '.join([artist['name'] for artist in track['artists']]),
                 'album': track['album']['name'],
@@ -193,7 +193,7 @@ def test_recommender():
     recommendations = recommender.get_recommendations(happy_features, num_tracks=5)
     
     for i, track in enumerate(recommendations, 1):
-        print(f"\n{i}. {track['name']}")
+        print(f"\n{i}.{track['name']}")
         print(f"   Artist: {track['artists']}")
         print(f"   Album:  {track['album']}")
         print(f"   Match Score: {track['score']:.2f}")
