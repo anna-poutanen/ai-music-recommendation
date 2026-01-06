@@ -1,4 +1,4 @@
-# 🎵 Facial Expression–Based Music Recommendation
+# Facial Expression–Based Music Recommendation
 
 An AI-powered system that detects your facial emotion via webcam and recommends Spotify songs that match your mood. 
 
@@ -128,7 +128,7 @@ Open your browser to `http://localhost:8501`
 
 ---
 
-## 🎓 How to Train the AI Model
+## How to Train the AI Model
 
 ### Step 1: Understand the Data
 
