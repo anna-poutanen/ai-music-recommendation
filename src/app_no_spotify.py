@@ -3,6 +3,26 @@ Streamlit Web Application
 Facial Expression-Based Music Recommendation
 """
 
+# Disable Metal GPU - must be before TensorFlow import
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TF logging
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+# Force CPU-only mode for TensorFlow
+import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
+
+import streamlit as st
+import cv2
+import numpy as np
+from PIL import Image
+
+"""
+Streamlit Web Application
+Facial Expression-Based Music Recommendation
+"""
+
 import streamlit as st
 import cv2
 import numpy as np
@@ -16,7 +36,7 @@ from local_recommender import LocalMusicRecommender
 
 # Try to import Spotify recommender
 SPOTIFY_AVAILABLE = False
-try:
+try: 
     from recommender import MusicRecommender
     SPOTIFY_AVAILABLE = True
 except ImportError:
@@ -25,118 +45,367 @@ except ImportError:
 
 # Page config
 st.set_page_config(
-    page_title="🎵 Emotion Music Recommender",
-    page_icon="🎵",
-    layout="wide"
+    page_title="Emotion Music Recommender",
+    page_icon="musical_note",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 
-# Custom CSS
+# Enhanced Custom CSS
 st.markdown("""
     <style>
+    /* Import Google Font */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    /* Global Styles */
+    .stApp {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Main Header */
     .main-header {
-        font-size: 3rem;
-        color: #1DB954;
-        text-align:  center;
-        margin-bottom:  2rem;
-    }
-    .emotion-box {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius:  10px;
+        font-size: 2.75rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #1DB954 0%, #1ed760 50%, #169c46 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         text-align: center;
-        font-size: 2rem;
-        margin: 20px 0;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
     }
+    
+    .sub-header {
+        text-align: center;
+        color: #6b7280;
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        font-weight: 400;
+    }
+    
+    /* Cards */
+    .card {
+        background:  linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        padding: 1.5rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        margin-bottom: 1rem;
+        border:  1px solid #e5e7eb;
+    }
+    
+    /* Emotion Display */
+    .emotion-display {
+        background:  linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        text-align: center;
+        color: white;
+        margin:  1.5rem 0;
+        box-shadow: 0 10px 25px -5px rgba(29, 185, 84, 0.4);
+    }
+    
+    .emotion-label {
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        opacity: 0.9;
+        margin-bottom: 0.5rem;
+    }
+    
+    .emotion-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .confidence-badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.375rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        backdrop-filter: blur(4px);
+    }
+    
+    /* Track Card */
     .track-card {
-        background-color: #ffffff;
-        padding:  15px;
-        border-radius:  10px;
-        margin: 10px 0;
-        border-left: 4px solid #1DB954;
+        background: white;
+        padding: 1.25rem;
+        border-radius: 12px;
+        margin:  0.75rem 0;
+        border: 1px solid #e5e7eb;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
     }
-    .disclaimer {
-        background-color: #fff3cd;
-        padding: 15px;
-        border-radius:  5px;
-        border-left: 4px solid #ffc107;
-        margin:  20px 0;
+    
+    .track-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
+        border-color: #1DB954;
     }
-    .local-mode-banner {
-        background-color: #d1ecf1;
-        padding:  10px 15px;
-        border-radius:  5px;
-        border-left: 4px solid #17a2b8;
-        margin: 10px 0;
+    
+    .track-number {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #1DB954, #1ed760);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.875rem;
+        flex-shrink: 0;
     }
+    
+    .track-info {
+        flex-grow: 1;
+        min-width: 0;
+    }
+    
+    .track-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 0.25rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow:  ellipsis;
+    }
+    
+    .track-artist {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+    
+    .track-meta {
+        text-align: right;
+        flex-shrink: 0;
+    }
+    
+    .match-score {
+        background: #ecfdf5;
+        color: #059669;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    /* Notice Boxes */
+    .notice-box {
+        padding: 1rem 1.25rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+    }
+    
+    .notice-content {
+        flex-grow: 1;
+    }
+    
+    .notice-title {
+        font-weight: 600;
+        margin-bottom:  0.25rem;
+    }
+    
+    .notice-text {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    
+    .notice-info {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border:  1px solid #93c5fd;
+    }
+    
+    .notice-info .notice-title { color: #1d4ed8; }
+    .notice-info .notice-text { color: #1e40af; }
+    
+    .notice-warning {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 1px solid #fcd34d;
+    }
+    
+    .notice-warning.notice-title { color: #b45309; }
+    .notice-warning.notice-text { color: #92400e; }
+    
+    /* Section Headers */
+    .section-header {
+        font-size:  1.25rem;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 1rem;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align:  center;
+        padding: 3rem 2rem;
+        color: #6b7280;
+    }
+    
+    .empty-state-text {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .empty-state-hint {
+        font-size: 0.9rem;
+        opacity: 0.7;
+    }
+    
+    /* Footer */
+    .footer {
+        text-align: center;
+        padding: 2rem 0;
+        color: #9ca3af;
+        font-size: 0.875rem;
+    }
+    
+    .footer-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #f3f4f6;
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Button Styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #1DB954 0%, #1ed760 100%);
+        color: white;
+        border:  none;
+        border-radius: 9999px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size:  1rem;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px 0 rgba(29, 185, 84, 0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px 0 rgba(29, 185, 84, 0.5);
+    }
+    
+    /* Camera Input Styling */
+    .stCameraInput > div {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    
+    /* Progress Bar */
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #1DB954, #1ed760);
+        border-radius: 9999px;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        font-weight: 500;
+        color: #374151;
+    }
+    
+    /* Hide Streamlit Branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
 
 # Initialize session state
-if 'detector' not in st.session_state:
+if 'detector' not in st.session_state: 
     st.session_state.detector = FaceDetector()
-if 'classifier' not in st.session_state:
+if 'classifier' not in st.session_state: 
     if os.path.exists('models/emotion_model.h5'):
         st.session_state.classifier = EmotionClassifier('models/emotion_model.h5')
     else:
         st.session_state.classifier = None
-if 'engine' not in st.session_state:
+if 'engine' not in st.session_state: 
     st.session_state.engine = EmotionEngine()
 if 'recommender' not in st.session_state:
-    # Always use local recommender - no Spotify needed
     st.session_state.recommender = LocalMusicRecommender()
     st.session_state.using_local = True
 
 
-def main():
-    # Header
-    st.markdown('<h1 class="main-header">🎵 Facial Expression Music Recommender</h1>', 
-                unsafe_allow_html=True)
+def render_track_card(index:  int, track: dict):
+    """Render a styled track card."""
+    score_percent = int(track['score'] * 100)
     
-    # Show local mode banner
-    if st.session_state.get('using_local', False):
-        st.markdown("""
-            <div class="local-mode-banner">
-                <strong>📍 Running in Local Mode</strong><br>
-                Using local song database (Spotify API not configured).
-                Songs will open in YouTube search.
+    st.markdown(f"""
+        <div class="track-card">
+            <div class="track-number">{index}</div>
+            <div class="track-info">
+                <div class="track-name">{track['name']}</div>
+                <div class="track-artist">{track['artists']} | {track['album']}</div>
             </div>
-        """, unsafe_allow_html=True)
-    
-    # Disclaimer
-    st.markdown("""
-        <div class="disclaimer">
-            <strong>Privacy & Ethics Notice</strong><br>
-            • No images are stored or transmitted<br>
-            • Emotion detection is approximate and for entertainment purposes<br>
-            • You can always override the detected emotion<br>
-            • This tool does not make claims about your actual emotional state
+            <div class="track-meta">
+                <span class="match-score">{score_percent}% match</span>
+            </div>
         </div>
     """, unsafe_allow_html=True)
     
-    # Check if model exists
+    # Play button
+    if "spotify.com" in track['url']: 
+        button_text = "Play on Spotify"
+    else:
+        button_text = "Find on YouTube"
+    
+    st.link_button(button_text, track['url'], use_container_width=True)
+
+
+def main():
+    # Header
+    st.markdown('<h1 class="main-header">Emotion Music Recommender</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Let your face pick the playlist</p>', unsafe_allow_html=True)
+    
+    # Mode Banner
+    if st.session_state.get('using_local', False):
+        st.markdown("""
+            <div class="notice-box notice-info">
+                <div class="notice-content">
+                    <div class="notice-title">Local Mode Active</div>
+                    <div class="notice-text">
+                        Using local song database. Songs will open in YouTube search.
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Privacy Notice (collapsible)
+    with st.expander("Privacy & Ethics Notice"):
+        st.markdown("""
+        - **No images are stored** — All processing happens locally
+        - **Emotion detection is approximate** — For entertainment purposes only
+        - **You're in control** — Override detected emotions anytime
+        - **No claims made** — This tool doesn't define your actual emotional state
+        """)
+    
+    # Model Check
     if st.session_state.classifier is None:
-        st.error("Emotion model not found!  Please train the model first.")
-        st.code("python src/train_emotion_model.py")
+        st.error("Emotion model not found. Please train the model first.")
+        st.code("python src/train_emotion_model.py", language="bash")
         return
     
-    # Check recommender
     if st.session_state.recommender is None:
         st.error("Recommender setup error")
         return
     
-    # Main layout
-    col1, col2 = st.columns([1, 1])
+    # Main Layout
+    col1, col2 = st.columns([1, 1], gap="large")
     
     with col1:
-        st.subheader("Capture Your Expression")
+        st.markdown('<div class="section-header">Capture Your Expression</div>', unsafe_allow_html=True)
         
-        # Camera input
-        camera_image = st.camera_input("Take a picture")
+        camera_image = st.camera_input("Take a photo", label_visibility="collapsed")
         
         if camera_image is not None:
-            # Convert to OpenCV format
+            # Process image
             image = Image.open(camera_image)
             image_np = np.array(image)
             image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
@@ -145,110 +414,98 @@ def main():
             face_crop, bbox = st.session_state.detector.detect_face(image_bgr)
             
             if face_crop is None:
-                st.warning("⚠️ No face detected.  Please try again with better lighting.")
+                st.markdown("""
+                    <div class="notice-box notice-warning">
+                        <div class="notice-content">
+                            <div class="notice-title">No Face Detected</div>
+                            <div class="notice-text">
+                                Try again with better lighting or face the camera directly.
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
             else:
-                # Draw bounding box
-                image_with_box = st.session_state.detector.draw_face_box(
-                    image_bgr.copy(), bbox
-                )
+                # Show detected face
+                image_with_box = st.session_state.detector.draw_face_box(image_bgr.copy(), bbox)
                 image_with_box_rgb = cv2.cvtColor(image_with_box, cv2.COLOR_BGR2RGB)
-                st.image(image_with_box_rgb, caption="Face Detection", use_column_width=True)
+                st.image(image_with_box_rgb, caption="Face detected", use_container_width=None)
                 
                 # Predict emotion
                 emotion_probs = st.session_state.classifier.predict_emotion(face_crop)
                 emotion_data = st.session_state.engine.process_emotion(emotion_probs)
                 
-                # Display emotion
                 emotion = emotion_data['emotion']
                 confidence = emotion_data['confidence']
                 
+                # Emotion Display
                 st.markdown(f"""
-                    <div class="emotion-box">
-                        Detected Emotion: <strong>{emotion}</strong><br>
-                        <small>Confidence: {confidence:.0%}</small>
+                    <div class="emotion-display">
+                        <div class="emotion-label">Detected Emotion</div>
+                        <div class="emotion-value">{emotion}</div>
+                        <span class="confidence-badge">Confidence: {confidence:.0%}</span>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Emotion probabilities
+                # Probability breakdown
                 with st.expander("View All Emotion Probabilities"):
-                    for emo, prob in sorted(emotion_probs.items(), 
-                                           key=lambda x:  x[1], reverse=True):
-                        st.progress(prob, text=f"{emo}: {prob:.1%}")
+                    for emo, prob in sorted(emotion_probs.items(), key=lambda x: x[1], reverse=True):
+                        col_a, col_b = st.columns([3, 1])
+                        with col_a:
+                            st.progress(prob)
+                        with col_b:
+                            st.caption(f"{emo}: {prob:.0%}")
                 
-                # Emotion override
-                st.subheader("Override Emotion (Optional)")
+                # Override option
+                st.markdown("---")
                 override_emotion = st.selectbox(
-                    "Select a different emotion:",
-                    ['Use Detected'] + list(emotion_probs.keys())
+                    "Override emotion (optional)",
+                    ['Use Detected'] + list(emotion_probs.keys()),
+                    help="Not feeling the detected emotion? Choose your own."
                 )
                 
                 if override_emotion != 'Use Detected':
                     emotion_data['emotion'] = override_emotion
-                    st.info(f"Using emotion: {override_emotion}")
+                    st.info(f"Using:  **{override_emotion}**")
                 
-                # Get music recommendations
-                if st.button("Get Music Recommendations", type="primary"):
-                    with st.spinner("Finding the perfect songs for you..."):
-                        # Get emotion features
-                        emotion_features = st.session_state.engine.get_emotion_features(
-                            emotion_data
-                        )
-                        
-                        # Get recommendations
+                # Get recommendations button
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Get Music Recommendations", type="primary", use_container_width=True):
+                    with st.spinner("Finding perfect songs for your mood..."):
+                        emotion_features = st.session_state.engine.get_emotion_features(emotion_data)
                         recommendations = st.session_state.recommender.get_recommendations(
                             emotion_features, num_tracks=5
                         )
-                        
-                        # Store in session state
                         st.session_state.recommendations = recommendations
                         st.session_state.current_emotion = emotion_data['emotion']
     
     with col2:
-        st.subheader("🎵 Your Personalized Playlist")
+        st.markdown('<div class="section-header">Your Personalized Playlist</div>', unsafe_allow_html=True)
         
-        if 'recommendations' in st.session_state:
-            st.success(f"✨ Songs for your **{st.session_state.current_emotion}** mood:")
+        if 'recommendations' in st.session_state and st.session_state.recommendations:
+            st.success(f"Songs curated for your **{st.session_state.current_emotion}** mood")
             
             for i, track in enumerate(st.session_state.recommendations, 1):
-                with st.container():
-                    st.markdown(f"""
-                        <div class="track-card">
-                            <h3>{i}.{track['name']}</h3>
-                            <p><strong>Artist:</strong> {track['artists']}</p>
-                            <p><strong>Album:</strong> {track['album']}</p>
-                            <p><strong>Match Score:</strong> {track['score']:.0%}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Dynamic button text based on URL type
-                    if "spotify.com" in track['url']: 
-                        button_text = "▶️ Play on Spotify"
-                    else:
-                        button_text = "🔍 Search on YouTube"
-                    
-                    st.link_button(
-                        button_text,
-                        track['url'],
-                        use_container_width=True
-                    )
-                    
-                    # Album artwork (only available with Spotify)
-                    if track.get('image_url'):
-                        st.image(track['image_url'], width=200)
-                    
-                    st.divider()
+                render_track_card(i, track)
+                
+                # Show album art if available
+                if track.get('image_url'):
+                    st.image(track['image_url'], width=150)
         else:
-            st.info("👈 Take a photo to get personalized music recommendations!")
+            st.markdown("""
+                <div class="empty-state">
+                    <div class="empty-state-text">No recommendations yet</div>
+                    <div class="empty-state-hint">Take a photo to discover music that matches your mood</div>
+                </div>
+            """, unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
-    
-    footer_text = "Made using Streamlit and TensorFlow (Local Mode)"
-    
-    st.markdown(f"""
-        <div style="text-align:  center; color: #666;">
-            {footer_text}<br>
-            <small>Emotion detection powered by CNN trained on FER-2013 dataset</small>
+    st.markdown("""
+        <div class="footer">
+            <div class="footer-badge">
+                <span>Powered by TensorFlow & Streamlit</span>
+            </div>
+            <div>Emotion detection trained on FER-2013 dataset</div>
         </div>
     """, unsafe_allow_html=True)
 
