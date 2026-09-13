@@ -300,16 +300,6 @@ python src/recommender.py
 
 ## Model Performance
 
-**Typical Results:**
-- Overall Accuracy: 62-68%
-- Happy Detection: 75%
-- Neutral Detection: 70%
-- Sad Detection: 65%
-- Angry Detection:  60%
-- Surprised Detection: 62%
-- Fearful Detection:  58%
-- Disgusted Detection:  35% (limited training data)
-
 **Confusion Matrix:**
 ```
          Predicted
