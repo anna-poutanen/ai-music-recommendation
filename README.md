@@ -1,6 +1,6 @@
 # Facial Expression–Based Music Recommendation
 
-An AI-powered system that detects your facial emotion via webcam and recommends Spotify songs that match your mood. 
+An AI-powered system that detects your facial emotion via webcam and recommends Spotify songs that match your mood based on your emotion!
 
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15-orange.svg)
